@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { uploadDocument, queryDocuments, decisionMode, QueryResponse, DecisionResponse } from '@/lib/api';
 
 export default function Home() {
@@ -99,6 +100,49 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCopy = () => {
+    if (!response) return;
+    
+    let textToCopy = '';
+    
+    if ('answer' in response) {
+      // Regular Query Response
+      textToCopy = response.answer;
+      if (response.sources && response.sources.length > 0) {
+        textToCopy += '\n\n--- Sources ---\n';
+        response.sources.forEach((source, index) => {
+          textToCopy += `\n${index + 1}. ${source.filename} (${source.relevance_score ? (source.relevance_score * 100).toFixed(1) + '% match' : 'N/A'})\n`;
+          textToCopy += source.text_preview + '\n';
+        });
+      }
+    } else {
+      // Decision Mode Response
+      textToCopy = response.result;
+      if (response.structured_data) {
+        textToCopy += `\n\nSources: ${response.structured_data.sources.join(', ')}`;
+        textToCopy += `\nChunks analyzed: ${response.structured_data.chunks_analyzed}`;
+      }
+    }
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      // Show temporary success message
+      const button = document.getElementById('copy-button');
+      if (button) {
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Copied!';
+        button.classList.remove('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+        button.classList.add('bg-green-600', 'text-white');
+        setTimeout(() => {
+          button.innerHTML = originalHTML;
+          button.classList.remove('bg-green-600', 'text-white');
+          button.classList.add('bg-gray-100', 'text-gray-700', 'hover:bg-gray-200');
+        }, 2000);
+      }
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+    });
   };
 
   return (
@@ -237,14 +281,29 @@ export default function Home() {
         {/* Response Display */}
         {response && (
           <section className="bg-white rounded-lg p-6 border border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Response</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Response</h2>
+              <button
+                id="copy-button"
+                onClick={handleCopy}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 font-medium text-sm transition-colors flex items-center gap-2"
+                title="Copy response"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Copy
+              </button>
+            </div>
             
             {'answer' in response ? (
               // Regular Query Response
               <div>
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
                   <h3 className="font-semibold text-gray-900 mb-2">Answer:</h3>
-                  <p className="text-gray-700 whitespace-pre-wrap">{response.answer}</p>
+                  <div className="text-gray-700 prose prose-sm max-w-none markdown-content">
+                    <ReactMarkdown>{response.answer}</ReactMarkdown>
+                  </div>
                 </div>
                 
                 {response.sources && response.sources.length > 0 && (
@@ -284,7 +343,9 @@ export default function Home() {
                   </span>
                 </div>
                 <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
-                  <p className="text-gray-700 whitespace-pre-wrap">{response.result}</p>
+                  <div className="text-gray-700 prose prose-sm max-w-none markdown-content">
+                    <ReactMarkdown>{response.result}</ReactMarkdown>
+                  </div>
                 </div>
                 {response.structured_data && (
                   <div className="mt-4 text-sm text-gray-600">
