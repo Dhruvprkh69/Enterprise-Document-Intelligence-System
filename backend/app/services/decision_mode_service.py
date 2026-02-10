@@ -32,10 +32,10 @@ class DecisionModeService:
         Returns:
             Structured response based on mode
         """
-        # First, retrieve relevant chunks
+        # First, retrieve relevant chunks (use more for decision mode analysis)
         retrieved_chunks = self.rag_service.vector_db.search(
             query=query,
-            top_k=settings.TOP_K_RESULTS * 2,  # Get more chunks for analysis
+            top_k=settings.TOP_K_COMPLEX,  # Get more chunks for comprehensive analysis
             user_id=user_id
         )
         
@@ -85,12 +85,19 @@ Context:
 
 Query: {query}
 
+**IMPORTANT:**
+- Focus ONLY on risks mentioned in the provided context
+- Do NOT add risks from other documents or general knowledge
+- If the query asks about specific risks (e.g., "cybersecurity risk"), focus on that
+- Extract exact financial impact numbers if mentioned (e.g., "up to ₹50 crores")
+- List ALL mitigation strategies mentioned in the context
+
 Provide a structured analysis with:
-1. List of identified risks (with severity: High/Medium/Low)
-2. Description of each risk
-3. Affected parties or areas
-4. Potential impact
-5. Recommendations (if applicable)
+1. List of identified risks (with severity: High/Medium/Low) - ONLY from the context
+2. Description of each risk - use exact wording from context when possible
+3. Affected parties or areas - extract from context
+4. Potential impact - include specific numbers if mentioned
+5. Recommendations (if applicable) - list ALL mitigation strategies from context
 
 Format your response clearly with numbered items.""",
 
@@ -101,12 +108,20 @@ Context:
 
 Query: {query}
 
+**IMPORTANT FOR CALCULATIONS:**
+- If you need to calculate percentages, margins, ratios, or growth rates:
+  - Extract ALL relevant numbers from the context
+  - Show your calculation step-by-step
+  - Example: "Net Profit Margin = (Net Profit / Total Revenue) × 100 = (₹27.6 crores / ₹201.8 crores) × 100 = 13.7%"
+  - If numbers are in different sources, combine them for calculation
+  - Always verify your math is correct
+
 Provide a structured analysis with:
-1. Revenue trends (increasing/decreasing/stable)
-2. Key factors affecting revenue
-3. Specific numbers or percentages mentioned
-4. Time periods covered
-5. Recommendations or insights
+1. Revenue trends (increasing/decreasing/stable) - include specific numbers and percentages
+2. Key factors affecting revenue - be specific with numbers
+3. Specific numbers or percentages mentioned - extract ALL financial figures
+4. Time periods covered - be precise with dates
+5. Recommendations or insights - based on the data provided
 
 Format your response clearly with numbered items.""",
 
@@ -133,12 +148,18 @@ Context:
 
 Query: {query}
 
+**IMPORTANT:**
+- Include ALL key numbers, percentages, and statistics from the context
+- Extract information from ALL provided sources
+- If the query asks for specific information (e.g., "business verticals"), make sure to include it
+- Connect related information from different sources if needed
+
 Create a summary that includes:
-1. Main topics and themes
-2. Key points and findings
-3. Important numbers or statistics
-4. Conclusions or recommendations
-5. Action items (if any)
+1. Main topics and themes - be comprehensive
+2. Key points and findings - include specific numbers and percentages
+3. Important numbers or statistics - extract ALL financial figures, dates, percentages
+4. Conclusions or recommendations - based on the data provided
+5. Action items (if any) - extract from context
 
 Format your response clearly with numbered sections."""
         }

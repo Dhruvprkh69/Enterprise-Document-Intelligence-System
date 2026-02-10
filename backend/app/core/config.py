@@ -34,7 +34,8 @@ class Settings(BaseSettings):
     # RAG Settings
     CHUNK_SIZE: int = 1000  # characters per chunk
     CHUNK_OVERLAP: int = 200  # overlap between chunks
-    TOP_K_RESULTS: int = 5  # number of chunks to retrieve
+    TOP_K_RESULTS: int = 8  # number of chunks to retrieve (increased for better retrieval)
+    TOP_K_COMPLEX: int = 12  # more chunks for complex/inference questions
     
     class Config:
         env_file = ".env"
