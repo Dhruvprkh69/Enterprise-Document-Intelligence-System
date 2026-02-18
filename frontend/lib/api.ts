@@ -4,9 +4,21 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
+export interface AuthRequest {
+  token: string;
+}
+
+export interface AuthResponse {
+  user_id: string;
+  email: string;
+  name: string;
+  picture?: string;
+}
+
 export interface QueryRequest {
   question: string;
   user_id?: string;
+  token?: string;
 }
 
 export interface QueryResponse {
@@ -28,6 +40,7 @@ export interface DecisionRequest {
   query: string;
   mode: 'risk_analysis' | 'revenue_analysis' | 'clause_extraction' | 'summary';
   user_id?: string;
+  token?: string;
 }
 
 export interface DecisionResponse {
@@ -51,14 +64,38 @@ export interface UploadResponse {
 }
 
 /**
+ * Verify Google OAuth token
+ */
+export async function verifyAuth(token: string): Promise<AuthResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/auth/verify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ token }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Failed to verify authentication');
+  }
+
+  return response.json();
+}
+
+/**
  * Upload a document
  */
 export async function uploadDocument(
   file: File,
-  userId: string = 'default'
+  userId: string = 'default',
+  token?: string
 ): Promise<UploadResponse> {
   const formData = new FormData();
   formData.append('file', file);
+  if (token) {
+    formData.append('token', token);
+  }
 
   const response = await fetch(`${API_BASE_URL}/api/upload?user_id=${userId}`, {
     method: 'POST',
@@ -79,12 +116,16 @@ export async function uploadDocument(
 export async function queryDocuments(
   request: QueryRequest
 ): Promise<QueryResponse> {
+  // Get token from localStorage if not provided
+  const token = request.token || localStorage.getItem('google_token') || undefined;
+  const payload = { ...request, token };
+  
   const response = await fetch(`${API_BASE_URL}/api/query`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -101,12 +142,16 @@ export async function queryDocuments(
 export async function decisionMode(
   request: DecisionRequest
 ): Promise<DecisionResponse> {
+  // Get token from localStorage if not provided
+  const token = request.token || localStorage.getItem('google_token') || undefined;
+  const payload = { ...request, token };
+  
   const response = await fetch(`${API_BASE_URL}/api/decision-mode`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {

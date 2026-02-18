@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useGoogleLogin } from '@react-oauth/google';
 import ReactMarkdown from 'react-markdown';
-import { uploadDocument, queryDocuments, decisionMode, QueryResponse, DecisionResponse } from '@/lib/api';
+import { uploadDocument, queryDocuments, decisionMode, verifyAuth, QueryResponse, DecisionResponse, AuthResponse } from '@/lib/api';
 
 export default function Home() {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
@@ -14,6 +17,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'query' | 'decision'>('query');
   const [decisionModeType, setDecisionModeType] = useState<'risk_analysis' | 'revenue_analysis' | 'clause_extraction' | 'summary'>('summary');
+  const [user, setUser] = useState<AuthResponse | null>(null);
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
 
   // Mode-specific auto-fill queries
   const modeQueries = {
@@ -29,6 +34,54 @@ export default function Home() {
     risk_analysis: 'Analyze Risks',
     revenue_analysis: 'Analyze Revenue',
     clause_extraction: 'Extract Clauses'
+  };
+
+  // Google OAuth Login
+  const login = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        // Verify token with backend
+        const userInfo = await verifyAuth(tokenResponse.access_token);
+        setUser(userInfo);
+        setGoogleToken(tokenResponse.access_token);
+        localStorage.setItem('google_token', tokenResponse.access_token);
+        localStorage.setItem('user_info', JSON.stringify(userInfo));
+      } catch (err: any) {
+        setError(err.message || 'Failed to authenticate');
+      }
+    },
+    onError: () => {
+      setError('Google authentication failed');
+    },
+  });
+
+  // Check for authentication on mount
+  useEffect(() => {
+    const isAuthenticated = localStorage.getItem('is_authenticated');
+    if (!isAuthenticated) {
+      router.push('/login');
+      return;
+    }
+
+    const savedToken = localStorage.getItem('google_token');
+    const savedUser = localStorage.getItem('user_info');
+    if (savedToken && savedUser) {
+      setGoogleToken(savedToken);
+      setUser(JSON.parse(savedUser));
+    } else if (savedUser) {
+      // Email/password login
+      setUser(JSON.parse(savedUser));
+    }
+  }, [router]);
+
+  const handleLogout = () => {
+    setUser(null);
+    setGoogleToken(null);
+    localStorage.removeItem('google_token');
+    localStorage.removeItem('user_info');
+    localStorage.removeItem('is_authenticated');
+    localStorage.removeItem('auth_type');
+    router.push('/login');
   };
 
   const handleModeChange = (newMode: 'query' | 'decision') => {
@@ -62,7 +115,8 @@ export default function Home() {
     setError(null);
 
     try {
-      const result = await uploadDocument(file);
+      const userId = user?.user_id || 'default';
+      const result = await uploadDocument(file, userId, googleToken || undefined);
       setUploadSuccess(true);
       setFile(null);
       // Reset file input
@@ -83,14 +137,18 @@ export default function Home() {
     setResponse(null);
 
     try {
+      const userId = user?.user_id || 'default';
+      const token = googleToken || undefined;
+      
       if (mode === 'query') {
-        const result = await queryDocuments({ question, user_id: 'default' });
+        const result = await queryDocuments({ question, user_id: userId, token });
         setResponse(result);
       } else {
         const result = await decisionMode({
           query: question,
           mode: decisionModeType,
-          user_id: 'default',
+          user_id: userId,
+          token,
         });
         setResponse(result);
       }
@@ -150,12 +208,61 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Enterprise Document Intelligence
-          </h1>
-          <p className="text-gray-600">
-            Upload documents and ask questions with AI-powered RAG system
-          </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Enterprise Document Intelligence
+              </h1>
+              <p className="text-gray-600">
+                Upload documents and ask questions with AI-powered RAG system
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              {user ? (
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                <p className="text-xs text-gray-500">{user.email}</p>
+              </div>
+              {user.picture ? (
+                <img
+                  src={user.picture}
+                  alt={user.name}
+                  className="w-10 h-10 rounded-full"
+                />
+              ) : (
+                <div 
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm"
+                  style={{
+                    backgroundColor: `hsl(${user.name.charCodeAt(0) * 137.508 % 360}, 70%, 50%)`
+                  }}
+                >
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 font-medium"
+              >
+                Logout
+              </button>
+            </div>
+              ) : (
+                <button
+                  onClick={() => login()}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  Sign in with Google
+                </button>
+              )}
+            </div>
+          </div>
         </header>
 
         {/* Upload Section */}
@@ -230,7 +337,7 @@ export default function Home() {
                 value={decisionModeType}
                 onChange={(e) => handleDecisionModeChange(e.target.value as any)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
+            >
                 <option value="summary">Executive Summary</option>
                 <option value="risk_analysis">Risk Analysis</option>
                 <option value="revenue_analysis">Revenue Analysis</option>
@@ -238,8 +345,8 @@ export default function Home() {
               </select>
               <p className="mt-2 text-sm text-gray-500">
                 Query will auto-fill based on selected mode. You can customize it below.
-              </p>
-            </div>
+          </p>
+        </div>
           )}
 
           {/* Query Input */}
@@ -288,7 +395,7 @@ export default function Home() {
                 onClick={handleCopy}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 font-medium text-sm transition-colors flex items-center gap-2"
                 title="Copy response"
-              >
+          >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
@@ -357,7 +464,7 @@ export default function Home() {
             )}
           </section>
         )}
-      </div>
+        </div>
     </div>
   );
 }

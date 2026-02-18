@@ -114,7 +114,7 @@ class DocumentProcessor:
         # Get file type
         file_type = Path(filename).suffix.lower()
         
-        if file_type not in settings.ALLOWED_EXTENSIONS:
+        if file_type not in settings.allowed_extensions_list:
             raise ValueError(f"File type {file_type} not allowed")
         
         # Extract text
