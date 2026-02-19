@@ -1,8 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Standard output for AWS Amplify (standalone is for Docker only)
-  // output: 'standalone', // Disabled for Amplify
+  // Static export for AWS Amplify (no SSR support)
+  output: 'export',
+  // Disable image optimization for static export
+  images: {
+    unoptimized: true,
+  },
 };
 
 export default nextConfig;
