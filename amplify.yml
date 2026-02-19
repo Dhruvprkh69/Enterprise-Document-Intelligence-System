@@ -3,41 +3,10 @@ frontend:
   phases:
     preBuild:
       commands:
-        - |
-          echo "Current directory: $(pwd)"
-          echo "Listing files:"
-          ls -la
-          if [ -d "frontend" ]; then
-            echo "Found frontend directory, changing to it..."
-            cd frontend
-            echo "Now in: $(pwd)"
-            npm install
-          else
-            echo "Error: frontend directory not found in root"
-            echo "Current directory contents:"
-            ls -la
-            exit 1
-          fi
+        - cd frontend && npm install
     build:
       commands:
-        - |
-          echo "Build phase - Current directory: $(pwd)"
-          echo "Listing files:"
-          ls -la
-          if [ -d "frontend" ]; then
-            echo "Found frontend directory, changing to it..."
-            cd frontend
-            echo "Now in: $(pwd)"
-            npm run build
-          elif [ -f "package.json" ]; then
-            echo "Already in frontend directory (package.json found)"
-            npm run build
-          else
-            echo "Error: frontend directory not found and not in frontend"
-            echo "Current directory contents:"
-            ls -la
-            exit 1
-          fi
+        - cd frontend && npm run build
   artifacts:
     baseDirectory: frontend/.next
     files:
