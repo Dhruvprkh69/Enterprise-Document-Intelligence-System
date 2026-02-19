@@ -39,12 +39,9 @@ frontend:
             exit 1
           fi
   artifacts:
-    baseDirectory: frontend
+    baseDirectory: frontend/.next
     files:
-      - '.next/**/*'
-      - 'public/**/*'
-      - 'package.json'
-      - 'node_modules/**/*'
+      - '**/*'
   cache:
     paths:
       - frontend/node_modules/**/*
