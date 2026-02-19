@@ -3,10 +3,29 @@ frontend:
   phases:
     preBuild:
       commands:
-        - cd frontend && npm install
+        - |
+          if [ -d "frontend" ]; then
+            cd frontend
+            npm install
+          else
+            echo "Error: frontend directory not found"
+            ls -la
+            exit 1
+          fi
     build:
       commands:
-        - cd frontend && npm run build
+        - |
+          if [ -d "frontend" ]; then
+            cd frontend
+            npm run build
+          elif [ -f "package.json" ]; then
+            echo "Already in frontend directory"
+            npm run build
+          else
+            echo "Error: frontend directory not found"
+            ls -la
+            exit 1
+          fi
   artifacts:
     baseDirectory: frontend/out
     files:
