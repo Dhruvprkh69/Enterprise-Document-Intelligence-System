@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
     
     # API Keys
-    GROQ_API_KEY: str
-    GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""  # Will be set via environment variables
+    GEMINI_API_KEY: str = ""  # Optional (for LLM fallback, not used for embeddings)
     
     # Environment
     ENVIRONMENT: Literal["local", "cloud", "production"] = "local"

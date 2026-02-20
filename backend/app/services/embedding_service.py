@@ -1,52 +1,23 @@
 """
 Embedding service for generating vector embeddings.
-Supports multiple providers: Gemini, Hugging Face.
+Uses Hugging Face Inference API (free, no local models, no API key needed).
 """
 from typing import List
-import google.generativeai as genai
-from sentence_transformers import SentenceTransformer
+import requests
 from app.core.config import settings
-
-# Global model instance (singleton pattern - load once)
-_hf_model = None
-
-
-def _get_hf_model():
-    """Get or create Hugging Face model instance (singleton)."""
-    global _hf_model
-    if _hf_model is None:
-        print("Loading Hugging Face embedding model (all-MiniLM-L6-v2)... This may take a moment.")
-        _hf_model = SentenceTransformer('all-MiniLM-L6-v2')
-        print("✓ Hugging Face model loaded successfully!")
-    return _hf_model
 
 
 class EmbeddingService:
-    """Generates embeddings for text chunks."""
+    """Generates embeddings for text chunks using Hugging Face Inference API."""
     
     def __init__(self):
-        self.gemini_api_key = settings.GEMINI_API_KEY
-        # Default to Hugging Face (more reliable, free, local)
-        # Gemini can be enabled if API key is valid and model name is correct
-        self.use_gemini = False  # Disabled by default due to model name issues
-        
-        # Initialize Hugging Face model (default) - uses singleton
-        self.model = _get_hf_model()
-        
-        # Optional: Initialize Gemini if API key available and you want to use it
-        # Note: Gemini embedding model names may vary, check latest docs
-        if self.gemini_api_key and False:  # Set to True if you fix Gemini model name
-            try:
-                genai.configure(api_key=self.gemini_api_key)
-                self.use_gemini = True
-                print("Gemini embeddings enabled")
-            except Exception as e:
-                print(f"Gemini initialization failed: {e}, using Hugging Face")
-                self.use_gemini = False
+        # Hugging Face Inference API - updated endpoint format
+        self.api_url = "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2"
+        print("✓ Using Hugging Face Inference API for embeddings (free, no API key needed)")
     
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate embeddings for a list of texts.
+        Generate embeddings for a list of texts using Gemini API.
         
         Args:
             texts: List of text strings to embed
@@ -57,39 +28,58 @@ class EmbeddingService:
         if not texts:
             return []
         
-        if self.use_gemini:
-            return self._generate_gemini_embeddings(texts)
-        else:
-            return self._generate_hf_embeddings(texts)
+        return self._generate_hf_api_embeddings(texts)
     
-    def _generate_gemini_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings using Gemini API."""
+    def _generate_hf_api_embeddings(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings using Hugging Face Inference API (free, no API key)."""
         embeddings = []
+        
+        # Process one by one to avoid rate limits and handle model loading
         for text in texts:
             try:
-                # Try different Gemini embedding model names
-                # Latest models: "models/embedding-001" or check Gemini docs
-                result = genai.embed_content(
-                    model="models/embedding-001",  # Updated model name
-                    content=text,
-                    task_type="retrieval_document"  # Specify task type
+                response = requests.post(
+                    self.api_url,
+                    json={"inputs": text},
+                    headers={"Content-Type": "application/json"},
+                    timeout=60  # Increased timeout for model loading
                 )
-                embeddings.append(result['embedding'])
+                
+                # Handle model loading (503) - wait and retry
+                if response.status_code == 503:
+                    # Model is loading, wait a bit and retry
+                    import time
+                    time.sleep(5)
+                    response = requests.post(
+                        self.api_url,
+                        json={"inputs": text},
+                        headers={"Content-Type": "application/json"},
+                        timeout=60
+                    )
+                
+                response.raise_for_status()
+                result = response.json()
+                
+                # Handle response format
+                if isinstance(result, list):
+                    if isinstance(result[0], list):
+                        embeddings.append(result[0])  # Nested list
+                    else:
+                        embeddings.append(result)  # Flat list
+                else:
+                    embeddings.append(result)
+                    
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 503:
+                    # Model still loading, use fallback or wait longer
+                    raise Exception("Hugging Face model is loading. Please wait a moment and try again.")
+                else:
+                    print(f"Error generating Hugging Face embeddings: {e}")
+                    raise Exception(f"Failed to generate embeddings: {str(e)}")
             except Exception as e:
-                print(f"Error generating Gemini embedding: {e}")
-                # Fallback to HF if Gemini fails
-                embeddings.append(self.model.encode(text).tolist())
+                print(f"Error generating Hugging Face embeddings: {e}")
+                raise Exception(f"Failed to generate embeddings: {str(e)}")
         
         return embeddings
-    
-    def _generate_hf_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings using Hugging Face (local)."""
-        try:
-            embeddings = self.model.encode(texts, show_progress_bar=False)
-            return embeddings.tolist()
-        except Exception as e:
-            print(f"Error generating Hugging Face embeddings: {e}")
-            raise Exception(f"Failed to generate embeddings: {str(e)}")
     
     def generate_single_embedding(self, text: str) -> List[float]:
         """Generate embedding for a single text."""

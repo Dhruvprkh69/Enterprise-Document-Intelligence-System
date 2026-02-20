@@ -2,7 +2,18 @@
  * API client for backend communication
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Get API URL - simple localhost for now
+const getApiBaseUrl = () => {
+  // Always use localhost for now - simple and works
+  return 'http://localhost:8000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+// Debug: Log API URL
+if (typeof window !== 'undefined') {
+  console.log('🔍 API Base URL:', API_BASE_URL);
+}
 
 export interface AuthRequest {
   token: string;
@@ -97,17 +108,30 @@ export async function uploadDocument(
     formData.append('token', token);
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/upload?user_id=${userId}`, {
-    method: 'POST',
-    body: formData,
-  });
+  const url = `${API_BASE_URL}/api/upload?user_id=${userId}`;
+  console.log('Upload URL:', url);
+  console.log('API Base URL:', API_BASE_URL);
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Failed to upload document');
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      // Don't set Content-Type header - browser will set it with boundary for FormData
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: `HTTP ${response.status}: ${response.statusText}` }));
+      throw new Error(error.detail || 'Failed to upload document');
+    }
+
+    return response.json();
+  } catch (error: any) {
+    console.error('Upload error:', error);
+    if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_REFUSED')) {
+      throw new Error(`Cannot connect to backend at ${API_BASE_URL}. Please check if the backend is running and accessible.`);
+    }
+    throw error;
   }
-
-  return response.json();
 }
 
 /**

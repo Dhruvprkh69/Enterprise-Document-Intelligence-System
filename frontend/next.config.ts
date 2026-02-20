@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Static export for AWS Amplify (no SSR support)
+  // Static export for deployment (no SSR support)
   output: 'export',
   // Disable image optimization for static export
   images: {

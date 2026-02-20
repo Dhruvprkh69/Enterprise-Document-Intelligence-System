@@ -20,6 +20,7 @@ export default function Home() {
   const [user, setUser] = useState<AuthResponse | null>(null);
   const [googleToken, setGoogleToken] = useState<string | null>(null);
 
+
   // Mode-specific auto-fill queries
   const modeQueries = {
     summary: 'Provide a comprehensive executive summary of the uploaded documents',
